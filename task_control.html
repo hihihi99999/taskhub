@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>タスク管理アプリ</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .task-form {
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .task-input {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .time-controls {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+            margin: 10px 0;
+        }
+
+        .time-btn {
+            padding: 5px 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        .time-btn:hover {
+            background-color: #0056b3;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #218838;
+        }
+
+        .task-list {
+            margin-top: 20px;
+        }
+
+        .task-item {
+            display: grid;
+            grid-template-columns: auto 1fr auto auto;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .task-item.completed .task-name {
+            text-decoration: line-through;
+            color: #888;
+        }
+
+        .delete-btn {
+            background-color: #dc3545;
+            padding: 5px 10px;
+        }
+
+        .delete-btn:hover {
+            background-color: #c82333;
+        }
+
+        .chart-container {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .chart-bar {
+            height: 30px;
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+
+        .bar {
+            background-color: #007bff;
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+
+        .bar-label {
+            margin-left: 10px;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>タスク管理アプリ</h1>
+        
+        <input type="date" id="taskDate" class="task-input">
+        
+        <div class="task-form">
+            <input type="text" id="taskInput" class="task-input" placeholder="新しいタスクを入力">
+            <input type="number" id="timeInput" class="task-input" placeholder="時間（分）" min="0">
+            <button onclick="addTask()">追加</button>
+        </div>
+
+        <div class="time-controls">
+            <button class="time-btn" onclick="adjustTime(-60)">-60分</button>
+            <button class="time-btn" onclick="adjustTime(-15)">-15分</button>
+            <button class="time-btn" onclick="adjustTime(15)">+15分</button>
+            <button class="time-btn" onclick="adjustTime(60)">+60分</button>
+        </div>
+
+        <div id="taskList" class="task-list"></div>
+
+        <div class="chart-container">
+            <h2>タスク時間グラフ</h2>
+            <div id="timeChart"></div>
+        </div>
+    </div>
+
+    <script>
+        // タスクデータを保存する配列
+        let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+
+        // ページ読み込み時に日付を今日に設定
+        document.getElementById('taskDate').valueAsDate = new Date();
+
+        // タスクの追加
+        function addTask() {
+            const taskInput = document.getElementById('taskInput');
+            const timeInput = document.getElementById('timeInput');
+            const dateInput = document.getElementById('taskDate');
+
+            if (taskInput.value.trim() === '' || timeInput.value === '') {
+                alert('タスク名と時間を入力してください');
+                return;
+            }
+
+            const task = {
+                id: Date.now(),
+                name: taskInput.value,
+                time: parseInt(timeInput.value),
+                completed: false,
+                date: dateInput.value
+            };
+
+            tasks.push(task);
+            saveTasks();
+            renderTasks();
+            updateChart();
+
+            taskInput.value = '';
+            timeInput.value = '';
+        }
+
+        // タスクの削除
+        function deleteTask(id) {
+            tasks = tasks.filter(task => task.id !== id);
+            saveTasks();
+            renderTasks();
+            updateChart();
+        }
+
+        // タスクの完了状態を切り替え
+        function toggleTask(id) {
+            const task = tasks.find(task => task.id === id);
+            if (task) {
+                task.completed = !task.completed;
+                saveTasks();
+                renderTasks();
+                updateChart();
+            }
+        }
+
+        // 時間の調整
+        function adjustTime(minutes) {
+            const timeInput = document.getElementById('timeInput');
+            let currentTime = parseInt(timeInput.value) || 0;
+            timeInput.value = Math.max(0, currentTime + minutes);
+        }
+
+        // タスクの表示
+        function renderTasks() {
+            const taskList = document.getElementById('taskList');
+            taskList.innerHTML = '';
+
+            const selectedDate = document.getElementById('taskDate').value;
+            const filteredTasks = tasks.filter(task => task.date === selectedDate);
+
+            filteredTasks.forEach(task => {
+                const taskElement = document.createElement('div');
+                taskElement.className = `task-item ${task.completed ? 'completed' : ''}`;
+                taskElement.innerHTML = `
+                    <input type="checkbox" ${task.completed ? 'checked' : ''} 
+                           onchange="toggleTask(${task.id})">
+                    <span class="task-name">${task.name}</span>
+                    <span>${task.time}分</span>
+                    <button class="delete-btn" onclick="deleteTask(${task.id})">削除</button>
+                `;
+                taskList.appendChild(taskElement);
+            });
+        }
+
+        // グラフの更新
+        function updateChart() {
+            const chartContainer = document.getElementById('timeChart');
+            chartContainer.innerHTML = '';
+
+            const selectedDate = document.getElementById('taskDate').value;
+            const filteredTasks = tasks.filter(task => task.date === selectedDate);
+
+            const maxTime = Math.max(...filteredTasks.map(task => task.time), 1);
+
+            filteredTasks.forEach(task => {
+                const chartBar = document.createElement('div');
+                chartBar.className = 'chart-bar';
+                
+                const bar = document.createElement('div');
+                bar.className = 'bar';
+                bar.style.width = `${(task.time / maxTime) * 100}%`;
+                
+                const label = document.createElement('span');
+                label.className = 'bar-label';
+                label.textContent = `${task.name}: ${task.time}分`;
+                
+                chartBar.appendChild(bar);
+                chartBar.appendChild(label);
+                chartContainer.appendChild(chartBar);
+            });
+        }
+
+        // LocalStorageにタスクを保存
+        function saveTasks() {
+            localStorage.setItem('tasks', JSON.stringify(tasks));
+        }
+
+        // 日付変更時のイベントリスナー
+        document.getElementById('taskDate').addEventListener('change', () => {
+            renderTasks();
+            updateChart();
+        });
+
+        // 初期表示
+        renderTasks();
+        updateChart();
+
+        // サンプルデータの追加
+        if (tasks.length === 0) {
+            const today = new Date().toISOString().split('T')[0];
+            const sampleTasks = [
+                { id: 1, name: "プロジェクトミーティング", time: 60, completed: true, date: today },
+                { id: 2, name: "コード開発", time: 120, completed: false, date: today },
+                { id: 3, name: "ドキュメント作成", time: 45, completed: false, date: today }
+            ];
+            tasks = sampleTasks;
+            saveTasks();
+            renderTasks();
+            updateChart();
+        }
+    </script>
+</body>
+</html>
